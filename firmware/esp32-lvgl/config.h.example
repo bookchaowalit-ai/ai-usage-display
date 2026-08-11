@@ -1,0 +1,34 @@
+#pragma once
+
+// Copy to config.h for local board tweaks.
+
+// Refresh interval (ms) — keep aligned with backend CACHE_TTL_SECONDS (60s)
+#define USAGE_REFRESH_MS          60000UL
+
+// HTTP timeout
+#define HTTP_TIMEOUT_MS           12000
+
+// Display
+#define SCREEN_WIDTH              320
+#define SCREEN_HEIGHT             240
+#define LVGL_TICK_PERIOD_MS       5
+
+// Optional: set 1 to dump JSON to Serial
+#define DEBUG_SERIAL              1
+
+// Touch calibration defaults for ESP32-2432S028 (adjust via docs/touch-calibration.md)
+#define TOUCH_MAP_X1              200
+#define TOUCH_MAP_X2              3700
+#define TOUCH_MAP_Y1              240
+#define TOUCH_MAP_Y2              3800
+#define TOUCH_SWAP_XY             0
+#define TOUCH_INVERT_X            0
+#define TOUCH_INVERT_Y            0
+
+// Bangkok is UTC+7. Change if the display is used in another timezone.
+#define TIMEZONE_OFFSET_MINUTES   420
+
+// Weekly reset text warning levels. The 5h reset stays neutral because it
+// normally resets every day and should not dominate the display.
+#define WEEKLY_RESET_WARNING_DAYS 1
+#define WEEKLY_RESET_NOTICE_DAYS  3

@@ -1,0 +1,49 @@
+services:
+  ai-usage-display-backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    environment:
+      HOST: 0.0.0.0
+      PORT: 3000
+      HOME: /home/node
+      KIMI_CODE_HOME: /home/node/.kimi-code
+      KIMI_CREDENTIALS_PATH: /home/node/.kimi-code/credentials/kimi-code.json
+      CLAUDE_CREDENTIALS_PATH: /home/node/.claude/.credentials.json
+      CLAUDE_QUOTA_PATH: /data/quota/claude-quota.json
+      GROK_QUOTA_PATH: /data/quota/grok-quota.json
+      GEMINI_QUOTA_PATH: /data/quota/gemini-quota.json
+      KIMI_QUOTA_PATH: /data/quota/kimi-quota.json
+      SOLO_EMPIRE_DB_PATH: /data/solo-empire.db
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    dns:
+      - 1.1.1.1
+      - 8.8.8.8
+    ports:
+      - "3000:3000"
+    volumes:
+      # Keep provider sessions on the host. The container only reads/refreshes
+      # the existing local sessions; provider keys never go into the image.
+      - ${HOST_HOME:?Set HOST_HOME in docker-compose.env}/.kimi-code:/home/node/.kimi-code
+      - ${HOST_HOME:?Set HOST_HOME in docker-compose.env}/.claude:/home/node/.claude
+      - ${HOST_HOME:?Set HOST_HOME in docker-compose.env}/.codex:/home/node/.codex
+      - ${HOST_HOME:?Set HOST_HOME in docker-compose.env}/.grok:/home/node/.grok
+      - ${HOST_HOME:?Set HOST_HOME in docker-compose.env}/.vscode-insiders/extensions:/home/node/.vscode-insiders/extensions:ro
+      # Mount the directory, not individual files: exporters atomically rename
+      # fresh snapshots, and a file bind mount would keep the old inode.
+      - ${QUOTA_HOST_DIR:?Set QUOTA_HOST_DIR in docker-compose.env}:/data/quota:ro
+      - ${SOLO_EMPIRE_DB_HOST_PATH:?Set SOLO_EMPIRE_DB_HOST_PATH in docker-compose.env}:/data/solo-empire.db:ro
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

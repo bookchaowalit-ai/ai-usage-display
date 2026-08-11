@@ -1,0 +1,26 @@
+# dependencies / build
+node_modules/
+backend/node_modules/
+dist/
+build/
+.dart_tool/
+*.iml
+
+# env and secrets
+.env
+.env.*
+!.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+docker-compose.env
+**/secrets.h
+!**/secrets.h.example
+
+# local / OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+coverage/
+.vite/

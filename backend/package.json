@@ -1,0 +1,39 @@
+{
+  "name": "ai-usage-display-backend",
+  "version": "1.0.0",
+  "description": "Aggregate Claude, Codex/OpenAI, Grok, and Kimi Code usage for ESP32 display",
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "smoke:recovery": "node scripts/recovery-smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "ai",
+    "usage",
+    "esp32",
+    "anthropic",
+    "openai",
+    "xai",
+    "kimi",
+    "moonshot"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.9"
+  }
+}
