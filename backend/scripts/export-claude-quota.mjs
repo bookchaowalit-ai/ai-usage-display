@@ -156,12 +156,25 @@ if (result.status !== 0) {
   process.exit(result.status && result.status > 0 ? result.status : 1);
 }
 
+// The CLI is expected to emit a single JSON object on stdout, but some
+// configurations (e.g. an MCP server logging to stdout) can interleave
+// extra non-JSON lines around it. Parsing `result.stdout` as a whole then
+// silently falling back to the raw multi-line text made the "Current
+// session:" / "Current week:" line lookups below both match the same
+// (unparsed, single-line) JSON blob, corrupting both quota windows at
+// once. Instead, find the line that is itself a complete JSON object and
+// parse only that.
 let text = result.stdout;
-try {
-  const parsed = JSON.parse(result.stdout);
-  if (typeof parsed.result === "string") text = parsed.result;
-} catch {
-  // Plain text output is also accepted.
+const jsonLine = result.stdout
+  .split(/\r?\n/)
+  .find((line) => line.trim().startsWith("{") && line.trim().endsWith("}"));
+if (jsonLine) {
+  try {
+    const parsed = JSON.parse(jsonLine);
+    if (typeof parsed.result === "string") text = parsed.result;
+  } catch {
+    // Plain text output is also accepted.
+  }
 }
 
 const now = new Date();
