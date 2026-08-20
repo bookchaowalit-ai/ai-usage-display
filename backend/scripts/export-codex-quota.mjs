@@ -116,7 +116,8 @@ function parseQuota(body) {
   const buckets = [];
   if (body?.rateLimitsByLimitId && typeof body.rateLimitsByLimitId === "object") {
     buckets.push(...Object.entries(body.rateLimitsByLimitId));
-  } else if (body?.rateLimits && typeof body.rateLimits === "object") {
+  }
+  if (!buckets.length && body?.rateLimits && typeof body.rateLimits === "object") {
     buckets.push([String(body.rateLimits.limitId || "codex"), body.rateLimits]);
   }
   const windows = [];

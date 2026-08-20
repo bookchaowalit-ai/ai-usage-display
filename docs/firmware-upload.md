@@ -90,7 +90,7 @@ Replace `/dev/ttyUSB0` with the port reported by `arduino-cli board list`.
 ## Verify
 
 1. Backend running on the LAN IP in `BACKEND_BASE_URL`
-2. Screen shows a 3×2 page: CLAUDE / CODEX / GROK / KIMI / GEMINI / STATUS
+2. Screen shows a 3×2 page: CODEX SPARK / CODEX / GROK / KIMI / GEMINI / STATUS
 3. Each provider card shows separate `5H` and `WEEK` percentages plus reset date/time
 4. Header **ONLINE** when fetch succeeds
 5. Disconnect backend → numbers freeze, header **OFFLINE**

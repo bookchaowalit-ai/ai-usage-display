@@ -13,8 +13,8 @@
 #define SCREEN_HEIGHT             240
 #define LVGL_TICK_PERIOD_MS       5
 
-// Optional: set 1 to dump JSON to Serial
-#define DEBUG_SERIAL              1
+// Optional: set 1 temporarily while troubleshooting over USB.
+#define DEBUG_SERIAL              0
 
 // Touch calibration defaults for ESP32-2432S028 (adjust via docs/touch-calibration.md)
 #define TOUCH_MAP_X1              200

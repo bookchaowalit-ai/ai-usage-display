@@ -466,7 +466,10 @@ export function parseCodexQuotaBody(
   const buckets: Array<[string, unknown]> = [];
   if (root.rateLimitsByLimitId && typeof root.rateLimitsByLimitId === "object") {
     buckets.push(...Object.entries(root.rateLimitsByLimitId as Record<string, unknown>));
-  } else if (root.rateLimits && typeof root.rateLimits === "object") {
+  }
+  // Some Codex versions include an empty limit map while still returning the
+  // legacy top-level bucket. Keep the fallback for those responses.
+  if (buckets.length === 0 && root.rateLimits && typeof root.rateLimits === "object") {
     const id = String((root.rateLimits as { limitId?: unknown }).limitId ?? "codex");
     buckets.push([id, root.rateLimits]);
   }

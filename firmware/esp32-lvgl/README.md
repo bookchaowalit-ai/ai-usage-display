@@ -57,8 +57,9 @@ board can run from a 5V USB power bank without a computer.
 
 ## UI
 
-One-page 3×2 layout: **CLAUDE**, **CODEX**, **GROK**, **KIMI**, **GEMINI**, and
-a compact **STATUS** tile. Gemini quota is supplied by the host-side
+One-page 3×2 layout: **CODEX SPARK**, **CODEX**, **GROK**, **KIMI**, **GEMINI**,
+and a compact **STATUS** tile. The first Codex card reads only the
+`codex_bengalfox` Spark limit; the second reads the main `codex` limit. Gemini quota is supplied by the host-side
 Antigravity bridge when its snapshot is available; otherwise the display shows -- and does not invent values.
 
 Each card shows:

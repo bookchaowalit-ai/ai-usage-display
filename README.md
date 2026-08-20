@@ -1,6 +1,6 @@
 # AI Usage Display
 
-Display **Claude**, **Codex/OpenAI**, **Grok**, **Kimi Code**, and **Gemini** paid-plan quota on an
+Display **Codex Spark**, **Codex/OpenAI**, **Grok**, **Kimi Code**, and **Gemini** paid-plan quota on an
 **ESP32-2432S028** 2.8" ILI9341 320×240 touch LCD.
 
 ```

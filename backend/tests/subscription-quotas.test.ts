@@ -85,6 +85,28 @@ describe("local subscription quota parsers", () => {
     expect(quota.primary?.resets_at).toBe("2026-08-08T07:36:11.000Z");
   });
 
+  it("falls back to the legacy Codex bucket when the limit map is empty", () => {
+    const quota = parseCodexQuotaBody(
+      {
+        rateLimitsByLimitId: {},
+        rateLimits: {
+          limitId: "codex",
+          planType: "plus",
+          primary: {
+            usedPercent: 12,
+            windowDurationMins: 10080,
+            resetsAt: 1786174571,
+          },
+        },
+      },
+      now,
+    );
+
+    expect(quota.status).toBe("ok");
+    expect(quota.primary?.label).toBe("week");
+    expect(quota.primary?.remaining_percent).toBe(88);
+  });
+
   it("maps Grok weekly billing percentage and reset", () => {
     const quota = parseGrokQuotaBody(
       {

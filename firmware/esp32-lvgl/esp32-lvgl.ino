@@ -50,7 +50,7 @@
 #define SCREEN_WIDTH              320
 #define SCREEN_HEIGHT             240
 #define LVGL_TICK_PERIOD_MS       5
-#define DEBUG_SERIAL              1
+#define DEBUG_SERIAL              0
 #define TOUCH_MAP_X1              200
 #define TOUCH_MAP_X2              3700
 #define TOUCH_MAP_Y1              240
@@ -91,6 +91,7 @@ XPT2046_Touchscreen touch(TOUCH_CS, TOUCH_IRQ);
 struct ProviderCard {
   const char *title;
   const char *provider_key;
+  const char *quota_limit_prefix;
   int requests;
   long input_tokens;
   long output_tokens;
@@ -111,13 +112,15 @@ struct ProviderCard {
 };
 
 static const int PROVIDER_COUNT = 5;
+static const char CODEX_MAIN_LIMIT_PREFIX[] = "codex.";
+static const char CODEX_SPARK_LIMIT_PREFIX[] = "codex_bengalfox.";
 
 ProviderCard cards[PROVIDER_COUNT] = {
-  {"CLAUDE", "claude", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
-  {"CODEX", "codex", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
-  {"GROK", "grok", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
-  {"KIMI", "kimi", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
-  {"GEMINI", "gemini", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
+  {"CODEX SPARK", "codex", CODEX_SPARK_LIMIT_PREFIX, 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
+  {"CODEX", "codex", CODEX_MAIN_LIMIT_PREFIX, 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
+  {"GROK", "grok", "", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
+  {"KIMI", "kimi", "", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
+  {"GEMINI", "gemini", "", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
 };
 
 bool g_online = false;
@@ -309,11 +312,11 @@ static bool fetchUsage() {
   Serial.println(payload);
 #endif
 
-  // Four providers plus quota windows can exceed 4 KB. Keep the document on
+  // Five providers plus quota windows can exceed 4 KB. Keep the document on
   // heap so the network task stack remains safe.
-  DynamicJsonDocument doc(8192);
+  DynamicJsonDocument doc(12288);
   DeserializationError err = deserializeJson(doc, payload);
-  if (err) {
+  if (err || doc.overflowed()) {
     g_online = false;
     snprintf(g_last_error, sizeof(g_last_error), "JSON err");
     return false;
@@ -376,6 +379,12 @@ static bool fetchUsage() {
             JsonArray windows = quota["windows"].as<JsonArray>();
             for (JsonObject window : windows) {
               if (window["remaining_percent"].isNull()) continue;
+              const char *windowId = window["id"] | "";
+              const char *limitPrefix = cards[i].quota_limit_prefix;
+              if (limitPrefix[0] != '\0' &&
+                  strncmp(windowId, limitPrefix, strlen(limitPrefix)) != 0) {
+                continue;
+              }
               const float remaining = window["remaining_percent"].as<float>();
               const int duration = window["duration_minutes"] | 0;
               const char *label = window["label"] | "";
@@ -415,12 +424,15 @@ static bool fetchUsage() {
         }
 #if DEBUG_SERIAL
         Serial.printf(
-          "Quota %s: 5h=%s %.0f%% week=%s %.0f%%\n",
+          "Quota %s/%s: 5h=%s %.0f%% reset=%s week=%s %.0f%% reset=%s\n",
           cards[i].provider_key,
+          cards[i].quota_limit_prefix[0] ? cards[i].quota_limit_prefix : "all",
           cards[i].has_five_hour ? "yes" : "no",
           cards[i].five_hour_remaining_percent,
+          cards[i].has_five_hour ? cards[i].five_hour_resets_at : "-",
           cards[i].has_weekly ? "yes" : "no",
-          cards[i].weekly_remaining_percent
+          cards[i].weekly_remaining_percent,
+          cards[i].has_weekly ? cards[i].weekly_resets_at : "-"
         );
 #endif
       }
@@ -466,7 +478,7 @@ static void drawProviderTile(const ProviderCard &c, int x, int y, int w, int h) 
 
   tft.setTextDatum(TC_DATUM);
   tft.setTextColor(TFT_BLACK, border);
-  tft.drawString(c.title, x + w / 2, y + 3, 2);
+  tft.drawString(c.title, x + w / 2, y + 3, strlen(c.title) > 8 ? 1 : 2);
 
   char line[24];
   char fiveDate[8];
