@@ -2,10 +2,10 @@
 
 ## Current state
 
-**Score: 7.5/10** (was 7/10 after pass 1, 6/10 originally). Backend is small, typed and well-tested
-(54 Vitest tests, typecheck and build pass) and now has CI. The ESP32
-firmware cannot be compiled in CI yet, and the 1.2k-line
-`subscription-quotas.ts` adapter carries most of the risk.
+**Score: 8/10** (7.5 after pass 2, 7 after pass 1, 6 originally). Backend
+is small, typed and well-tested (75 Vitest tests, typecheck and build pass)
+with CI; CLI process handling is now one shared, tested module. The ESP32
+firmware still cannot be compiled in CI.
 
 Local checks: `cd backend && npm ci && npm run typecheck && npm test && npm run build`.
 
@@ -16,18 +16,32 @@ Local checks: `cd backend && npm ci && npm run typecheck && npm test && npm run 
   TFT_eSPI pinned), using the `*.example` headers copied into place.
 
 ### P1
-- Split `backend/src/adapters/subscription-quotas.ts` per provider
-  (claude/codex/grok/kimi/gemini modules + shared `cli.ts` spawn helpers);
-  `tests/cli-probes.test.ts` now pins the spawn behavior for the refactor.
-- `runCommand` (Claude CLI) and `runJsonRpcProcess` duplicate spawn/timeout
-  logic; unify them once split.
+- Finish the provider split: move Claude (OAuth + CLI `/usage` parsing and
+  reset-time zone math), Codex and Grok out of `subscription-quotas.ts`
+  (630 lines) into their own modules, like `kimi-subscription.ts`.
+- Unit tests for `kimi-subscription.ts` refresh/lock path (fake OAuth host
+  via a local `http.createServer`, temp credential file).
 
 ### P2
 - Add a Dockerfile build job to CI (`docker build backend`).
 - Expose cache hit/stale counters on `/ready` for the display's
   diagnostics screen.
 
-## Done in this pass (pass 2)
+## Done in this pass (pass 3)
+- `subscription-quotas.ts` split (1228 -> 630 lines): `cli.ts` (process
+  runner + JSON-RPC session + `sanitizeMessage`), `cli-resolve.ts` (CLI
+  discovery), `quota-math.ts` (shared window/number helpers),
+  `kimi-subscription.ts` (Kimi OAuth/usage). Public exports unchanged.
+- `runCommand` and `runJsonRpcProcess` share one supervisor (timeout,
+  stderr cap, spawn error, single settle). Bug fixed: `runCommand` resolved
+  on `exit`, which can drop the tail of stdout; it now resolves on `close`.
+  Non-zero exits now include redacted stderr; stdout is hard-capped at
+  1 MiB; a throwing JSON-RPC start callback no longer leaks the child.
+- `tests/cli.test.ts` (9 tests, fake executables): burst-then-exit output,
+  output cap, stderr redaction, timeout, ENOENT, start-callback failure,
+  JWT redaction, CLI resolution via config and PATH.
+
+## Done in pass 2
 - Bug: a Codex/Grok CLI that exited 0 without replying left the quota
   probe hanging until the timeout; it now fails immediately. Replies written
   just before exit are still read (`close` instead of `exit`), and a stdin
