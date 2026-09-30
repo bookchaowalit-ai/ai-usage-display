@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 
 /**
@@ -17,23 +18,14 @@ export function extractDeviceToken(headers: IncomingHttpHeaders): string | null 
 }
 
 /**
- * Constant-time-ish string compare to reduce timing leaks for short tokens.
+ * Constant-time token comparison. Both sides are hashed first so the
+ * comparison length is fixed and does not reveal the expected length.
  */
 export function tokensMatch(expected: string, provided: string | null): boolean {
   if (!expected || !provided) return false;
-  if (expected.length !== provided.length) {
-    // Still walk expected to avoid trivial short-circuit timing on length alone
-    let acc = 0;
-    for (let i = 0; i < expected.length; i++) {
-      acc |= expected.charCodeAt(i) ^ 0;
-    }
-    return acc < 0; // always false
-  }
-  let mismatch = 0;
-  for (let i = 0; i < expected.length; i++) {
-    mismatch |= expected.charCodeAt(i) ^ provided.charCodeAt(i);
-  }
-  return mismatch === 0;
+  const a = createHash("sha256").update(expected, "utf8").digest();
+  const b = createHash("sha256").update(provided, "utf8").digest();
+  return timingSafeEqual(a, b);
 }
 
 export function isAuthorized(

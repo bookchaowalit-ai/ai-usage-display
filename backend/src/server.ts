@@ -46,8 +46,18 @@ export function createServer(config: AppConfig): http.Server {
   });
 
   return http.createServer((req, res) => {
-    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
-    const path = url.pathname.replace(/\/+$/, "") || "/";
+    // Parse against a fixed base: only the path matters, and a client-supplied
+    // Host header such as "bad host" made `new URL` throw inside the request
+    // listener, which is an uncaught exception that kills the process.
+    let pathname: string;
+    try {
+      pathname = new URL(req.url ?? "/", "http://localhost").pathname;
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "bad_request" }));
+      return;
+    }
+    const path = pathname.replace(/\/+$/, "") || "/";
 
     if (path === "/health" || path === "/api/health") {
       handleHealth(req, res);

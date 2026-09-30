@@ -4,8 +4,8 @@ import type { UsageService } from "../lib/usage-service.js";
 import { parseWindow } from "../lib/window.js";
 
 function readUrl(req: IncomingMessage): URL {
-  const host = req.headers.host ?? "localhost";
-  return new URL(req.url ?? "/", `http://${host}`);
+  // Fixed base: never build a URL from the client-controlled Host header.
+  return new URL(req.url ?? "/", "http://localhost");
 }
 
 function sendJson(
