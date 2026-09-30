@@ -535,6 +535,35 @@ function parseClaudeCliReset(
   return candidate?.toISOString() ?? null;
 }
 
+// Wall-clock offset (local minus UTC, in ms) of timeZone at the given instant.
+function zoneOffsetMs(instantMs: number, timeZone: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(instantMs));
+  const values = new Map(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, Number.parseInt(part.value, 10)]),
+  );
+  const date = new Date(instantMs);
+  const localAsUtc = Date.UTC(
+    values.get("year") ?? date.getUTCFullYear(),
+    (values.get("month") ?? date.getUTCMonth() + 1) - 1,
+    values.get("day") ?? date.getUTCDate(),
+    values.get("hour") ?? date.getUTCHours(),
+    values.get("minute") ?? date.getUTCMinutes(),
+    values.get("second") ?? 0,
+  );
+  return localAsUtc - (instantMs - (instantMs % 1000));
+}
+
 function zonedCivilTimeToUtc(
   year: number,
   month: number,
@@ -545,31 +574,11 @@ function zonedCivilTimeToUtc(
 ): Date | null {
   const civilAsUtc = Date.UTC(year, month, day, hour, minute, 0);
   try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-      hourCycle: "h23",
-    }).formatToParts(new Date(civilAsUtc));
-    const values = new Map(
-      parts
-        .filter((part) => part.type !== "literal")
-        .map((part) => [part.type, Number.parseInt(part.value, 10)]),
-    );
-    const localAsUtc = Date.UTC(
-      values.get("year") ?? year,
-      (values.get("month") ?? month + 1) - 1,
-      values.get("day") ?? day,
-      values.get("hour") ?? hour,
-      values.get("minute") ?? minute,
-      values.get("second") ?? 0,
-    );
-    const offsetMs = localAsUtc - civilAsUtc;
-    return new Date(civilAsUtc - offsetMs);
+    // The offset must be the one in force at the target instant, not at
+    // civilAsUtc: those differ by up to a day, so across a DST change a
+    // single pass was an hour off. Re-evaluate at the first guess.
+    const firstGuess = civilAsUtc - zoneOffsetMs(civilAsUtc, timeZone);
+    return new Date(civilAsUtc - zoneOffsetMs(firstGuess, timeZone));
   } catch {
     return null;
   }

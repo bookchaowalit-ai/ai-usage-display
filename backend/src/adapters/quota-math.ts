@@ -2,10 +2,17 @@ import { emptyQuota, type ProviderQuota, type QuotaWindow } from "../types/usage
 
 // Shared number/date/window helpers for the local subscription quota parsers.
 
+/**
+ * A 0-100 percentage rounded to one decimal. Rounding never reaches an
+ * endpoint the raw value has not: 99.97% used stays 99.9 (not "100% used,
+ * 0% left" while requests still go through) and 0.01% left stays 0.1.
+ */
 export function percent(value: unknown): number | null {
   const n = nonNegativeNumber(value);
   if (n === null) return null;
-  return Math.round(Math.min(100, n) * 10) / 10;
+  if (n >= 100) return 100;
+  if (n === 0) return 0;
+  return Math.min(99.9, Math.max(0.1, Math.round(n * 10) / 10));
 }
 
 export function remaining(used: number): number {

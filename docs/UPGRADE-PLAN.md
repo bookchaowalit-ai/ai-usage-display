@@ -28,6 +28,12 @@ Local checks: `cd backend && npm ci && npm run typecheck && npm test && npm run 
   diagnostics screen.
 
 ## Done in this pass (pass 3)
+- Quota `percent()` no longer rounds to an endpoint the raw value has not
+  reached: 99.97% used read "100% used, 0% left" while requests still
+  worked, and Kimi's 1-of-10000 remaining read 0%. Now 99.9 / 0.1.
+- Claude CLI reset times: the zone offset is taken at the reset instant
+  (two-pass), so resets on a DST-change day are no longer an hour off.
+  Tests: `tests/quota-math.test.ts`.
 - `subscription-quotas.ts` split (1228 -> 630 lines): `cli.ts` (process
   runner + JSON-RPC session + `sanitizeMessage`), `cli-resolve.ts` (CLI
   discovery), `quota-math.ts` (shared window/number helpers),
