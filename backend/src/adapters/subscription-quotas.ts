@@ -1020,14 +1020,24 @@ function runJsonRpcProcess(
       if (stderr.length < 4096) stderr += chunk.toString("utf8");
     });
     child.on("error", (error) => finish(error));
-    child.on("exit", (code, signal) => {
-      if (!settled && code !== 0) {
-        finish(
-          new Error(
-            `local CLI exited (${signal ?? code ?? "unknown"})${stderr ? `: ${sanitizeMessage(stderr)}` : ""}`,
-          ),
-        );
+    // A CLI that dies before reading stdin makes writes fail with EPIPE; the
+    // exit/close handlers report that, so keep the stream error from being
+    // an uncaught exception.
+    child.stdin.on("error", () => {});
+    // "close" fires after stdout is drained, so a reply written just before a
+    // clean exit is still seen. Any exit without a reply settles immediately
+    // instead of waiting for the timeout.
+    child.on("close", (code, signal) => {
+      if (settled) return;
+      if (code === 0) {
+        finish(new Error("local CLI exited before responding"));
+        return;
       }
+      finish(
+        new Error(
+          `local CLI exited (${signal ?? code ?? "unknown"})${stderr ? `: ${sanitizeMessage(stderr)}` : ""}`,
+        ),
+      );
     });
     lines.on("line", (line) => {
       let message: JsonRpcMessage;
