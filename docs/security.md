@@ -29,6 +29,16 @@
 - Rotate if a device is lost or the token leaks.
 - Prefer LAN-only binding or a reverse proxy with TLS if exposed beyond home Wi-Fi.
 
+## Unauthenticated endpoints
+
+`GET /health` (liveness) and `GET /ready` (readiness) do not require the
+device token so container orchestrators can probe them. `/ready` reveals which
+providers are configured, their quota status and sanitized status messages,
+but never token counts, costs or credentials. Error responses from every route
+use fixed messages; the underlying error is logged on the server only. Keep
+the backend on a trusted LAN or behind a reverse proxy that blocks `/ready`
+from untrusted clients.
+
 ## Network recommendations
 
 - Run the backend on a private LAN.

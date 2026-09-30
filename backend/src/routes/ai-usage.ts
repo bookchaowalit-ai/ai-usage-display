@@ -8,6 +8,11 @@ function readUrl(req: IncomingMessage): URL {
   return new URL(req.url ?? "/", "http://localhost");
 }
 
+function logRouteError(route: string, err: unknown): void {
+  const detail = err instanceof Error ? err.message : String(err);
+  console.error(`[${route}] ${detail}`);
+}
+
 function sendJson(
   res: ServerResponse,
   status: number,
@@ -62,12 +67,16 @@ export function createAiUsageHandler(opts: {
 
     try {
       const data = await opts.usageService.getUsage(window);
-      // Strip internal messages for device if desired? Keep them — useful for OFFLINE/unavailable UI.
+      // Per-provider messages stay: adapters sanitize them and the display
+      // uses them for its OFFLINE/unavailable states.
       sendJson(res, 200, data);
     } catch (err) {
+      // Raw errors can carry file paths or upstream response text; keep them
+      // in the server log and send the device a fixed message.
+      logRouteError("ai-usage", err);
       sendJson(res, 500, {
         error: "internal_error",
-        message: err instanceof Error ? err.message : "unknown error",
+        message: "usage aggregation failed",
       });
     }
   };
@@ -128,11 +137,13 @@ export function createReadyHandler(opts: {
         providers,
       });
     } catch (error) {
+      // /ready is unauthenticated: never echo raw error text.
+      logRouteError("ready", error);
       sendJson(res, 503, {
         ok: false,
         ready: false,
         error: "not_ready",
-        message: error instanceof Error ? error.message : "usage aggregation failed",
+        message: "usage aggregation failed",
       });
     }
   };
