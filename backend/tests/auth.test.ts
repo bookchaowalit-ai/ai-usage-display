@@ -16,6 +16,12 @@ describe("auth", () => {
     expect(tokensMatch("secret-token", null)).toBe(false);
   });
 
+  it("rejects tokens of a different length and empty expectations", () => {
+    expect(tokensMatch("secret-token", "secret")).toBe(false);
+    expect(tokensMatch("secret", "secret-token")).toBe(false);
+    expect(tokensMatch("", "")).toBe(false);
+  });
+
   it("authorizes valid headers", () => {
     expect(isAuthorized({ authorization: "Bearer my-device" }, "my-device")).toBe(true);
     expect(isAuthorized({ authorization: "Bearer other" }, "my-device")).toBe(false);

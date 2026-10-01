@@ -22,7 +22,11 @@ services:
       - 1.1.1.1
       - 8.8.8.8
     ports:
-      - "3000:3000"
+      # The ESP32 reaches this port over Wi-Fi, so it cannot be loopback-only.
+      # Set AI_USAGE_BIND to the host's LAN address (e.g. 192.168.1.10) to keep
+      # it off VPN/public interfaces, or 127.0.0.1 when no device is used.
+      # /api/ai-usage needs DEVICE_TOKEN; /health and /ready are public.
+      - "${AI_USAGE_BIND:-0.0.0.0}:3000:3000"
     volumes:
       # Keep provider sessions on the host. The container only reads/refreshes
       # the existing local sessions; provider keys never go into the image.

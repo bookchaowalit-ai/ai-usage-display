@@ -185,4 +185,38 @@ describe("routes", () => {
     expect(out.body().ready).toBe(false);
     expect(out.body().providers[0].quota_status).toBe("stale");
   });
+
+  it("does not leak internal error text on 500 or /ready failures", async () => {
+    const secretish = "ENOENT: open '/home/owner/.claude/.credentials.json'";
+    const usageService = {
+      getUsage: vi.fn(async () => {
+        throw new Error(secretish);
+      }),
+    } as unknown as UsageService;
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const usage = mockRes();
+      await createAiUsageHandler({ deviceToken: "secret", usageService })(
+        {
+          method: "GET",
+          headers: { authorization: "Bearer secret" },
+          url: "/api/ai-usage?window=today",
+        } as http.IncomingMessage,
+        usage.res,
+      );
+      expect(usage.status).toBe(500);
+      expect(JSON.stringify(usage.body())).not.toContain(".credentials");
+
+      const ready = mockRes();
+      await createReadyHandler({ deviceToken: "secret", usageService })(
+        { method: "GET", headers: {}, url: "/ready" } as http.IncomingMessage,
+        ready.res,
+      );
+      expect(ready.status).toBe(503);
+      expect(JSON.stringify(ready.body())).not.toContain(".credentials");
+      expect(logged).toHaveBeenCalledTimes(2);
+    } finally {
+      logged.mockRestore();
+    }
+  });
 });
