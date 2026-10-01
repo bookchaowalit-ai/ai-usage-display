@@ -1,4 +1,5 @@
 import http from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AppConfig } from "./config.js";
 import { AnthropicUsageAdapter } from "./adapters/anthropic.js";
 import { OpenAIUsageAdapter } from "./adapters/openai.js";
@@ -13,6 +14,63 @@ import {
   createHealthHandler,
   createReadyHandler,
 } from "./routes/ai-usage.js";
+
+/**
+ * Access level of a route:
+ * - "public": no credentials (liveness/readiness probes; aggregate status only).
+ * - "device": the ESP32 device token (`Authorization: Bearer` or
+ *   `X-Device-Token`), checked inside the handler.
+ */
+export type RouteAccess = "public" | "device";
+
+type Handler = (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
+
+export interface RouteDef {
+  name: string;
+  paths: readonly string[];
+  methods: readonly string[];
+  access: RouteAccess;
+  handler: Handler;
+}
+
+/**
+ * The server's whole route table. tests/route-access.test.ts walks it, so a
+ * new route must declare its access level and methods here.
+ */
+export function buildRoutes(handlers: {
+  usage: Handler;
+  health: Handler;
+  ready: Handler;
+}): RouteDef[] {
+  return [
+    {
+      name: "health",
+      paths: ["/health", "/api/health"],
+      methods: ["GET", "HEAD"],
+      access: "public",
+      handler: handlers.health,
+    },
+    {
+      name: "ready",
+      paths: ["/ready", "/api/ready"],
+      methods: ["GET"],
+      access: "public",
+      handler: handlers.ready,
+    },
+    {
+      name: "ai-usage",
+      paths: ["/api/ai-usage"],
+      methods: ["GET"],
+      access: "device",
+      handler: handlers.usage,
+    },
+  ];
+}
+
+function sendError(res: ServerResponse, status: number, error: string): void {
+  res.writeHead(status, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ error }));
+}
 
 export function createServer(config: AppConfig): http.Server {
   const adapters = {
@@ -35,14 +93,10 @@ export function createServer(config: AppConfig): http.Server {
     subscriptionQuotas,
   );
 
-  const handleUsage = createAiUsageHandler({
-    deviceToken: config.deviceToken,
-    usageService,
-  });
-  const handleHealth = createHealthHandler();
-  const handleReady = createReadyHandler({
-    deviceToken: config.deviceToken,
-    usageService,
+  const routes = buildRoutes({
+    usage: createAiUsageHandler({ deviceToken: config.deviceToken, usageService }),
+    health: createHealthHandler(),
+    ready: createReadyHandler({ deviceToken: config.deviceToken, usageService }),
   });
 
   return http.createServer((req, res) => {
@@ -53,28 +107,22 @@ export function createServer(config: AppConfig): http.Server {
     try {
       pathname = new URL(req.url ?? "/", "http://localhost").pathname;
     } catch {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ error: "bad_request" }));
+      sendError(res, 400, "bad_request");
       return;
     }
     const path = pathname.replace(/\/+$/, "") || "/";
 
-    if (path === "/health" || path === "/api/health") {
-      handleHealth(req, res);
+    const route = routes.find((r) => r.paths.includes(path));
+    if (!route) {
+      sendError(res, 404, "not_found");
       return;
     }
-
-    if (path === "/ready" || path === "/api/ready") {
-      void handleReady(req, res);
+    // Every route is read-only; nothing on this server changes state.
+    if (!route.methods.includes(req.method ?? "")) {
+      res.setHeader("Allow", route.methods.join(", "));
+      sendError(res, 405, "method_not_allowed");
       return;
     }
-
-    if (path === "/api/ai-usage") {
-      void handleUsage(req, res);
-      return;
-    }
-
-    res.writeHead(404, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: "not_found" }));
+    void route.handler(req, res);
   });
 }

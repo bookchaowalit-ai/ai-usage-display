@@ -47,6 +47,16 @@ Local checks: `cd backend && npm ci && npm run typecheck && npm test && npm run 
   output cap, stderr redaction, timeout, ENOENT, start-callback failure,
   JWT redaction, CLI resolution via config and PATH.
 
+- Route access matrix: `server.ts` dispatches on an explicit table
+  (`buildRoutes`: name, paths, methods, `public`/`device`); methods outside
+  a route's list get 405 with `Allow` (`POST /health` used to answer 200).
+  `tests/route-access.test.ts` pins the table, forbids state-changing
+  methods and probes every path x method over HTTP (device route: 401
+  without or with a wrong token).
+- Compose: port 3000 now publishes on `${AI_USAGE_BIND:-0.0.0.0}`; the
+  ESP32 needs LAN access, so the default stays, but it can be pinned to the
+  LAN IP or loopback (`docker-compose.env.example`).
+
 ## Done in pass 2
 - Bug: a Codex/Grok CLI that exited 0 without replying left the quota
   probe hanging until the timeout; it now fails immediately. Replies written
