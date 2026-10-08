@@ -1,0 +1,8 @@
+system_id: bookchaowalit-ai/book-ai/ai-usage-display
+prefix: CARD
+brand: "AI USAGE DISPLAY"
+subtitle: "จอ ESP32 ตั้งโต๊ะแสดงโควตาและการใช้ AI หลายผู้ให้บริการ"
+footer: "AI Usage Display — Product Card"
+color: "#2f4b6e"
+audience: internal
+tier: L0
