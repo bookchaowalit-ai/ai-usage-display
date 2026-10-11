@@ -466,21 +466,24 @@ export function parseGrokQuotaBody(
     root.config && typeof root.config === "object"
       ? (root.config as Record<string, unknown>)
       : root;
-  const used = percent(config.creditUsagePercent);
-  if (used === null) {
-    return emptyQuota("no_data", "Grok returned no weekly quota", now);
-  }
   const period =
     config.currentPeriod && typeof config.currentPeriod === "object"
       ? (config.currentPeriod as Record<string, unknown>)
-      : {};
+      : null;
+  // The billing response is protobuf JSON, which omits zero values: with a
+  // current period but no creditUsagePercent, nothing was used yet.
+  const used =
+    config.creditUsagePercent === undefined && period ? 0 : percent(config.creditUsagePercent);
+  if (used === null) {
+    return emptyQuota("no_data", "Grok returned no weekly quota", now);
+  }
   const plan = typeof root.subscription_tier === "string" ? root.subscription_tier : undefined;
   const window: QuotaWindow = {
     id: "weekly",
     label: "week",
     used_percent: used,
     remaining_percent: remaining(used),
-    resets_at: isoDate(period.end ?? config.billingPeriodEnd),
+    resets_at: isoDate(period?.end ?? config.billingPeriodEnd),
     duration_minutes: 10080,
   };
   return quotaFromWindows([window], now, plan, "source:grok-local-billing");

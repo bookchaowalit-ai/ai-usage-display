@@ -125,6 +125,30 @@ describe("local subscription quota parsers", () => {
     expect(quota.primary?.resets_at).toBe("2026-08-11T16:43:23.633Z");
   });
 
+  it("treats a Grok period without creditUsagePercent as 0% used", () => {
+    // protobuf JSON omits zero values, so an unused week has no percentage field.
+    const quota = parseGrokQuotaBody(
+      {
+        config: {
+          currentPeriod: {
+            type: "USAGE_PERIOD_TYPE_WEEKLY",
+            end: "2026-10-13T16:43:23.633082+00:00",
+          },
+        },
+        subscription_tier: "X Premium+",
+      },
+      now,
+    );
+
+    expect(quota.status).toBe("ok");
+    expect(quota.primary?.remaining_percent).toBe(100);
+    expect(quota.primary?.resets_at).toBe("2026-10-13T16:43:23.633Z");
+  });
+
+  it("still reports no data when Grok returns no billing period", () => {
+    expect(parseGrokQuotaBody({ config: {} }, now).status).toBe("no_data");
+  });
+
   it("maps Kimi weekly and rolling five-hour quota", () => {
     const quota = parseKimiQuotaBody(
       {
