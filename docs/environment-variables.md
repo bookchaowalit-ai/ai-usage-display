@@ -22,6 +22,7 @@ Copy `backend/.env.example` → `backend/.env`. **Never commit real secrets.**
 | `RELAY_MAX_AGE_SECONDS` | `600` | Older snapshots return 503 |
 | `RELAY_URL` | *(empty)* | Host pusher target, e.g. `https://<service>.up.railway.app` |
 | `RELAY_PUSH_INTERVAL_SECONDS` | `60` | Host pusher interval |
+| `FIRMWARE_DIR` | `backend/firmware-dist` | OTA image directory (`latest.bin`, `manifest.json`) |
 
 See [hosted-relay.md](./hosted-relay.md).
 

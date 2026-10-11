@@ -13,6 +13,8 @@ const EXPECTED: Record<string, { access: RouteAccess; methods: string[] }> = {
   health: { access: "public", methods: ["GET", "HEAD"] },
   ready: { access: "public", methods: ["GET"] },
   "ai-usage": { access: "device", methods: ["GET"] },
+  "firmware-manifest": { access: "device", methods: ["GET"] },
+  "firmware-binary": { access: "device", methods: ["GET", "HEAD"] },
 };
 
 const SAFE_METHODS = new Set(["GET", "HEAD"]);
@@ -20,7 +22,13 @@ const ALL_METHODS = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"];
 const TOKEN = "matrix-device-token";
 
 const noop = () => undefined;
-const table = buildRoutes({ usage: noop, health: noop, ready: noop });
+const table = buildRoutes({
+  usage: noop,
+  health: noop,
+  ready: noop,
+  firmwareManifest: noop,
+  firmwareBinary: noop,
+});
 
 function request(
   port: number,

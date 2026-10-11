@@ -31,10 +31,9 @@ function call(
 describe("relay route table", () => {
   it("adds the push route only when a relay push handler exists", () => {
     const noop = () => undefined;
-    expect(buildRoutes({ usage: noop, health: noop, ready: noop }).map((r) => r.name)).not.toContain(
-      "relay-push",
-    );
-    const relay = buildRoutes({ usage: noop, health: noop, ready: noop, relayPush: noop });
+    const base = { usage: noop, health: noop, ready: noop, firmwareManifest: noop, firmwareBinary: noop };
+    expect(buildRoutes(base).map((r) => r.name)).not.toContain("relay-push");
+    const relay = buildRoutes({ ...base, relayPush: noop });
     const push = relay.find((r) => r.name === "relay-push");
     expect(push).toMatchObject({ access: "relay-push", methods: ["POST"], paths: ["/api/relay/snapshot"] });
   });

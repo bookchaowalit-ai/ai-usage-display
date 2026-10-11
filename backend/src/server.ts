@@ -10,6 +10,12 @@ import { GeminiUsageAdapter } from "./adapters/gemini.js";
 import { LocalSubscriptionQuotaAdapter } from "./adapters/subscription-quotas.js";
 import { UsageService } from "./lib/usage-service.js";
 import { RelayStore } from "./lib/relay-store.js";
+import { FirmwareStore } from "./lib/firmware-store.js";
+import {
+  createFirmwareBinaryHandler,
+  createFirmwareManifestHandler,
+  createFirmwarePublishHandler,
+} from "./routes/firmware.js";
 import {
   createRelayPushHandler,
   createRelayReadyHandler,
@@ -48,7 +54,10 @@ export function buildRoutes(handlers: {
   usage: Handler;
   health: Handler;
   ready: Handler;
+  firmwareManifest: Handler;
+  firmwareBinary: Handler;
   relayPush?: Handler;
+  firmwarePublish?: Handler;
 }): RouteDef[] {
   const routes: RouteDef[] = [
     {
@@ -72,6 +81,20 @@ export function buildRoutes(handlers: {
       access: "device",
       handler: handlers.usage,
     },
+    {
+      name: "firmware-manifest",
+      paths: ["/api/firmware/manifest"],
+      methods: ["GET"],
+      access: "device",
+      handler: handlers.firmwareManifest,
+    },
+    {
+      name: "firmware-binary",
+      paths: ["/api/firmware/latest.bin"],
+      methods: ["GET", "HEAD"],
+      access: "device",
+      handler: handlers.firmwareBinary,
+    },
   ];
   if (handlers.relayPush) {
     // The only state-changing route; it only replaces the in-memory snapshot.
@@ -83,6 +106,15 @@ export function buildRoutes(handlers: {
       handler: handlers.relayPush,
     });
   }
+  if (handlers.firmwarePublish) {
+    routes.push({
+      name: "firmware-publish",
+      paths: ["/api/firmware"],
+      methods: ["POST"],
+      access: "relay-push",
+      handler: handlers.firmwarePublish,
+    });
+  }
   return routes;
 }
 
@@ -91,14 +123,24 @@ function sendError(res: ServerResponse, status: number, error: string): void {
   res.end(JSON.stringify({ error }));
 }
 
+function firmwareHandlers(config: AppConfig, firmware: FirmwareStore) {
+  return {
+    firmwareManifest: createFirmwareManifestHandler({ deviceToken: config.deviceToken, store: firmware }),
+    firmwareBinary: createFirmwareBinaryHandler({ deviceToken: config.deviceToken, store: firmware }),
+  };
+}
+
 function relayRoutes(config: AppConfig): RouteDef[] {
   const store = new RelayStore();
+  const firmware = new FirmwareStore(config.firmwareDir);
   const maxAgeSeconds = config.relay.maxAgeSeconds;
   return buildRoutes({
     usage: createRelayUsageHandler({ deviceToken: config.deviceToken, store, maxAgeSeconds }),
     health: createHealthHandler(),
     ready: createRelayReadyHandler({ store, maxAgeSeconds }),
+    ...firmwareHandlers(config, firmware),
     relayPush: createRelayPushHandler({ pushToken: config.relay.pushToken, store }),
+    firmwarePublish: createFirmwarePublishHandler({ pushToken: config.relay.pushToken, store: firmware }),
   });
 }
 
@@ -127,6 +169,7 @@ function probeRoutes(config: AppConfig): RouteDef[] {
     usage: createAiUsageHandler({ deviceToken: config.deviceToken, usageService }),
     health: createHealthHandler(),
     ready: createReadyHandler({ deviceToken: config.deviceToken, usageService }),
+    ...firmwareHandlers(config, new FirmwareStore(config.firmwareDir)),
   });
 }
 
@@ -151,7 +194,7 @@ export function createServer(config: AppConfig): http.Server {
       sendError(res, 404, "not_found");
       return;
     }
-    // Only the relay-mode push route accepts a state-changing method.
+    // Only the relay-mode push and firmware publish routes change state.
     if (!route.methods.includes(req.method ?? "")) {
       res.setHeader("Allow", route.methods.join(", "));
       sendError(res, 405, "method_not_allowed");

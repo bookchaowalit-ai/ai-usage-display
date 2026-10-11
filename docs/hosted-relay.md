@@ -49,3 +49,33 @@ backend can bind to `HOST=127.0.0.1`.
 Set `BACKEND_BASE_URL` in `secrets.h` to the `https://` URL. HTTPS requests
 verify the server against the Let's Encrypt roots in `root_ca.h`; `http://`
 URLs keep working for a LAN backend.
+
+## Firmware updates over the air
+
+After one USB flash with this firmware, later updates come from the hosted
+backend; the board can stay on any USB power source.
+
+- On every boot the firmware copies non-empty `secrets.h` values (Wi-Fi,
+  `BACKEND_BASE_URL`, `DEVICE_TOKEN`) into NVS and then reads them from NVS.
+  OTA images are built with empty secrets, so they contain no credentials and
+  keep the stored values.
+- About 30 s after boot and then every `OTA_CHECK_MS` (default 1 h), the board
+  reads `GET /api/firmware/manifest`. When `version` differs from
+  `FW_VERSION` it downloads `GET /api/firmware/latest.bin`, checks size and
+  MD5, flashes the inactive OTA slot and restarts. A failed or partial
+  download leaves the current firmware running.
+- Both firmware routes need the device token. Publishing (`POST /api/firmware`)
+  needs the relay push token, accepts only ESP32 images (magic byte `0xE9`)
+  up to 2 MB, and verifies the `X-Firmware-MD5` header. The hosted service
+  stores the image under `FIRMWARE_DIR` (a Railway volume at `/data/firmware`).
+
+Release a new version:
+
+1. Bump `FW_VERSION` in `firmware/esp32-lvgl/version.h`.
+2. Run `firmware/scripts/release-ota.sh` (builds with empty secrets and
+   publishes using `RELAY_URL` / `RELAY_PUSH_TOKEN` from `backend/.env`).
+
+The board picks it up within an hour, or immediately after a power cycle.
+There is no automatic rollback: an image that boots but cannot reach the
+network needs a USB flash, so test a release on the bench first when it
+touches Wi-Fi or HTTP code.

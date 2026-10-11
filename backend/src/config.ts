@@ -82,6 +82,8 @@ export interface AppConfig {
     pushToken: string;
     maxAgeSeconds: number;
   };
+  /** Directory holding the OTA image (latest.bin + manifest.json). */
+  firmwareDir: string;
 }
 
 export function loadConfig(envOverrides: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -168,6 +170,7 @@ export function loadConfig(envOverrides: NodeJS.ProcessEnv = process.env): AppCo
       pushToken: get("RELAY_PUSH_TOKEN"),
       maxAgeSeconds: getInt("RELAY_MAX_AGE_SECONDS", 600),
     },
+    firmwareDir: get("FIRMWARE_DIR", path.resolve(__dirname, "../firmware-dist")),
   };
 }
 

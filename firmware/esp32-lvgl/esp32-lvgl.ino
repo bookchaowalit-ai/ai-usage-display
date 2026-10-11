@@ -19,7 +19,10 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
+#include <Preferences.h>
+#include <Update.h>
 #include "root_ca.h"
+#include "version.h"
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include <XPT2046_Touchscreen.h>
@@ -242,6 +245,44 @@ static uint16_t weeklyResetTextColor(const char *iso) {
   return TFT_LIGHTGREY;
 }
 
+#ifndef OTA_CHECK_MS
+#define OTA_CHECK_MS              3600000UL  // check for new firmware hourly
+#endif
+
+// ---------- device config (NVS) ----------
+// secrets.h values are written to NVS on the first USB flash. OTA images are
+// built with empty secrets, so they keep using what NVS already holds.
+String g_wifi_ssid;
+String g_wifi_password;
+String g_backend_url;
+String g_device_token;
+
+static bool usableSecret(const char *value) {
+  return value && value[0] && strcmp(value, "changeme") != 0;
+}
+
+static void storeIfChanged(Preferences &prefs, const char *key, const char *value) {
+  if (usableSecret(value) && prefs.getString(key, "") != value) {
+    prefs.putString(key, value);
+  }
+}
+
+static void loadDeviceConfig() {
+  Preferences prefs;
+  prefs.begin("aiusage", false);
+  if (usableSecret(WIFI_SSID)) {
+    storeIfChanged(prefs, "ssid", WIFI_SSID);
+    storeIfChanged(prefs, "pass", WIFI_PASSWORD);
+  }
+  storeIfChanged(prefs, "url", BACKEND_BASE_URL);
+  storeIfChanged(prefs, "token", DEVICE_TOKEN);
+  g_wifi_ssid = prefs.getString("ssid", "");
+  g_wifi_password = prefs.getString("pass", "");
+  g_backend_url = prefs.getString("url", "");
+  g_device_token = prefs.getString("token", "");
+  prefs.end();
+}
+
 // ---------- networking ----------
 static bool ensureWifi() {
   if (WiFi.status() == WL_CONNECTED) {
@@ -256,7 +297,7 @@ static bool ensureWifi() {
   Serial.println("WiFi connecting...");
 #endif
   WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.begin(g_wifi_ssid.c_str(), g_wifi_password.c_str());
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
     delay(250);
@@ -274,6 +315,87 @@ static bool ensureWifi() {
   return g_wifi_ok;
 }
 
+static void drawUi();
+
+// HTTPS (hosted relay) verifies the server against the bundled Let's Encrypt
+// roots; plain http:// stays available for a LAN backend.
+static void beginRequest(HTTPClient &http, WiFiClientSecure &tls, const String &url) {
+  if (url.startsWith("https://")) {
+    tls.setCACert(ISRG_ROOT_CA_BUNDLE);
+    tls.setTimeout(HTTP_TIMEOUT_MS / 1000);
+    http.begin(tls, url);
+  } else {
+    http.begin(url);
+  }
+}
+
+// Pull-based OTA: compare the server manifest with FW_VERSION and flash the
+// published image when they differ. Update.end() rejects an MD5 mismatch, and
+// the old image keeps running unless the new one is fully written.
+static void checkFirmwareUpdate() {
+  if (!g_wifi_ok || g_backend_url.length() == 0) return;
+
+  String version;
+  String md5;
+  int expectedSize = 0;
+  {
+    HTTPClient http;
+    WiFiClientSecure tls;
+    http.setTimeout(HTTP_TIMEOUT_MS);
+    beginRequest(http, tls, g_backend_url + "/api/firmware/manifest");
+    http.addHeader("Authorization", String("Bearer ") + g_device_token);
+    int code = http.GET();
+    if (code != 200) {
+      http.end();
+      return;
+    }
+    DynamicJsonDocument manifest(1024);
+    DeserializationError err = deserializeJson(manifest, http.getString());
+    http.end();
+    if (err) return;
+    version = String(manifest["version"] | "");
+    md5 = String(manifest["md5"] | "");
+    expectedSize = manifest["size"] | 0;
+  }
+  if (version.length() == 0 || version == FW_VERSION || md5.length() != 32 || expectedSize <= 0) {
+    return;
+  }
+
+#if DEBUG_SERIAL
+  Serial.printf("OTA %s -> %s (%d bytes)\n", FW_VERSION, version.c_str(), expectedSize);
+#endif
+  tft.fillScreen(TFT_BLACK);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.drawString("Updating firmware...", 10, 100, 2);
+  tft.drawString(version, 10, 125, 2);
+
+  HTTPClient http;
+  WiFiClientSecure tls;
+  http.setTimeout(HTTP_TIMEOUT_MS);
+  beginRequest(http, tls, g_backend_url + "/api/firmware/latest.bin");
+  http.addHeader("Authorization", String("Bearer ") + g_device_token);
+  int code = http.GET();
+  if (code != 200 || http.getSize() != expectedSize || !Update.begin(expectedSize)) {
+    http.end();
+    drawUi();
+    return;
+  }
+  Update.setMD5(md5.c_str());
+  size_t written = Update.writeStream(*http.getStreamPtr());
+  http.end();
+  if (written != (size_t)expectedSize || !Update.end(true)) {
+    Update.abort();
+#if DEBUG_SERIAL
+    Serial.printf("OTA failed: %s\n", Update.errorString());
+#endif
+    drawUi();
+    return;
+  }
+  tft.drawString("Restarting...", 10, 150, 2);
+  delay(500);
+  ESP.restart();
+}
+
 static bool fetchUsage() {
   if (!ensureWifi()) {
     g_online = false;
@@ -285,23 +407,15 @@ static bool fetchUsage() {
   }
 
   HTTPClient http;
-  String url = String(BACKEND_BASE_URL) + "/api/ai-usage?window=today";
+  String url = g_backend_url + "/api/ai-usage?window=today";
 #if DEBUG_SERIAL
   Serial.print("Usage GET ");
   Serial.println(url);
 #endif
   http.setTimeout(HTTP_TIMEOUT_MS);
-  // HTTPS (hosted relay) verifies the server against the bundled Let's
-  // Encrypt roots; plain http:// stays available for a LAN backend.
   WiFiClientSecure tls;
-  if (url.startsWith("https://")) {
-    tls.setCACert(ISRG_ROOT_CA_BUNDLE);
-    tls.setTimeout(HTTP_TIMEOUT_MS / 1000);
-    http.begin(tls, url);
-  } else {
-    http.begin(url);
-  }
-  http.addHeader("Authorization", String("Bearer ") + DEVICE_TOKEN);
+  beginRequest(http, tls, url);
+  http.addHeader("Authorization", String("Bearer ") + g_device_token);
   http.addHeader("Accept", "application/json");
 
   int code = http.GET();
@@ -701,6 +815,7 @@ void setup() {
   initLvgl();
 #endif
 
+  loadDeviceConfig();
   ensureWifi();
   bool ok = fetchUsage();
   if (!ok) {
@@ -723,6 +838,16 @@ void loop() {
       drawUi();
       delay(300);
     }
+  }
+
+  // First check ~30 s after boot, then every OTA_CHECK_MS.
+  static unsigned long lastOtaCheck = 0;
+  static bool otaCheckedOnce = false;
+  if ((!otaCheckedOnce && millis() > 30000UL) ||
+      (otaCheckedOnce && millis() - lastOtaCheck >= OTA_CHECK_MS)) {
+    otaCheckedOnce = true;
+    lastOtaCheck = millis();
+    checkFirmwareUpdate();
   }
 
   if (millis() - g_last_fetch_ms >= USAGE_REFRESH_MS) {
