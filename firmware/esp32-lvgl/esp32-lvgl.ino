@@ -118,14 +118,14 @@ struct ProviderCard {
 
 static const int PROVIDER_COUNT = 5;
 static const char CODEX_MAIN_LIMIT_PREFIX[] = "codex.";
-static const char CODEX_SPARK_LIMIT_PREFIX[] = "codex_bengalfox.";
-
+// MUSE is a placeholder for a future provider: the backend does not report
+// "muse" yet, so the card stays on its unavailable defaults.
 ProviderCard cards[PROVIDER_COUNT] = {
-  {"CODEX SPARK", "codex", CODEX_SPARK_LIMIT_PREFIX, 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
+  {"CLAUDE", "claude", "", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
   {"CODEX", "codex", CODEX_MAIN_LIMIT_PREFIX, 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
   {"GROK", "grok", "", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
-  {"KIMI", "kimi", "", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
   {"GEMINI", "gemini", "", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
+  {"MUSE", "muse", "", 0, 0, 0, 0, 0.0f, "---", "-", false, 0.0f, "-", false, 0.0f, "-", false, "unavailable", "-", false},
 };
 
 bool g_online = false;
