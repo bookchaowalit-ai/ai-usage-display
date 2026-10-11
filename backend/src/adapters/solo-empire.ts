@@ -1,8 +1,4 @@
-import fs from "node:fs";
-import path from "node:path";
-import { DatabaseSync } from "node:sqlite";
 import type { AppConfig } from "../config.js";
-import { sqliteSinceClause } from "../lib/window.js";
 import {
   emptyUsage,
   type AdapterResult,
@@ -56,16 +52,12 @@ export interface TelemetryRow {
   cost_usd: number;
 }
 
-export type SqliteQueryFn = (dbPath: string, window: UsageWindow) => TelemetryRow[];
-
 /**
  * Read-only Solo Empire adapter.
  *
- * Priority:
- * 1. SOLO_EMPIRE_USAGE_API_URL (HTTP GET returning partial usage rows)
- * 2. SOLO_EMPIRE_DB_PATH via Node built-in `node:sqlite` (readOnly: true)
- *
- * Never writes to the database. If neither source works, returns unavailable.
+ * Source: SOLO_EMPIRE_USAGE_API_URL (HTTP GET returning partial usage rows).
+ * The retired SQLite control-plane database is no longer read.
+ * If the API is not configured, returns unavailable.
  */
 export class SoloEmpireAdapter {
   readonly name = "solo-empire";
@@ -73,11 +65,10 @@ export class SoloEmpireAdapter {
   constructor(
     private readonly config: AppConfig["soloEmpire"],
     private readonly fetchImpl: FetchLike = defaultFetch,
-    private readonly sqliteQuery: SqliteQueryFn = queryTelemetryReadonly,
   ) {}
 
   isConfigured(): boolean {
-    return Boolean(this.config.apiUrl || this.config.dbPath);
+    return Boolean(this.config.apiUrl);
   }
 
   /**
@@ -98,12 +89,7 @@ export class SoloEmpireAdapter {
     if (!this.isConfigured()) return base;
 
     try {
-      let rows: TelemetryRow[] = [];
-      if (this.config.apiUrl) {
-        rows = await this.fetchFromApi(window);
-      } else if (this.config.dbPath) {
-        rows = this.fetchFromSqlite(window);
-      }
+      const rows: TelemetryRow[] = await this.fetchFromApi(window);
 
       const buckets: Record<
         DisplayProvider,
@@ -172,14 +158,6 @@ export class SoloEmpireAdapter {
     }
     return parseApiBody(body);
   }
-
-  private fetchFromSqlite(window: UsageWindow): TelemetryRow[] {
-    const dbPath = path.resolve(this.config.dbPath);
-    if (!fs.existsSync(dbPath)) {
-      throw new Error(`Solo Empire DB not found: ${dbPath}`);
-    }
-    return this.sqliteQuery(dbPath, window);
-  }
 }
 
 /**
@@ -224,70 +202,6 @@ export function parseApiBody(body: unknown): TelemetryRow[] {
       cost_usd: num(r.cost_usd ?? r.estimated_cost_usd),
     };
   });
-}
-
-/** Pipe-separated rows from tests / legacy tooling. */
-export function parseSqliteCsv(raw: string): TelemetryRow[] {
-  const lines = raw
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const rows: TelemetryRow[] = [];
-  for (const line of lines) {
-    // provider|requests|input|output|total|cost
-    const parts = line.split("|");
-    if (parts.length < 6) continue;
-    rows.push({
-      provider: parts[0] || null,
-      requests: num(parts[1]),
-      input_tokens: num(parts[2]),
-      output_tokens: num(parts[3]),
-      total_tokens: num(parts[4]),
-      cost_usd: num(parts[5]),
-    });
-  }
-  return rows;
-}
-
-/**
- * Open solo-empire.db read-only and aggregate ai_run_telemetry.
- * Uses Node built-in node:sqlite — no system sqlite3 CLI required.
- */
-export function queryTelemetryReadonly(dbPath: string, window: UsageWindow): TelemetryRow[] {
-  const { sql: where, params } = sqliteSinceClause(window);
-  const query = `
-SELECT
-  COALESCE(provider, '') AS provider,
-  COUNT(*) AS requests,
-  COALESCE(SUM(input_tokens), 0) AS input_tokens,
-  COALESCE(SUM(output_tokens), 0) AS output_tokens,
-  COALESCE(SUM(total_tokens), 0) AS total_tokens,
-  COALESCE(SUM(estimated_cost_usd), 0) AS cost_usd
-FROM ai_run_telemetry
-WHERE ${where}
-GROUP BY provider
-`.trim();
-
-  // DatabaseSync readOnly: true — never writes the Solo Empire control plane DB.
-  const db = new DatabaseSync(dbPath, { readOnly: true });
-  try {
-    const stmt = db.prepare(query);
-    const rawRows =
-      params.length > 0
-        ? (stmt.all(...params) as Array<Record<string, unknown>>)
-        : (stmt.all() as Array<Record<string, unknown>>);
-
-    return rawRows.map((r) => ({
-      provider: typeof r.provider === "string" ? r.provider : null,
-      requests: num(r.requests),
-      input_tokens: num(r.input_tokens),
-      output_tokens: num(r.output_tokens),
-      total_tokens: num(r.total_tokens),
-      cost_usd: num(r.cost_usd),
-    }));
-  } finally {
-    db.close();
-  }
 }
 
 function num(v: unknown): number {

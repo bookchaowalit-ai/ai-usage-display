@@ -25,8 +25,7 @@ and mounted read-only; Codex keeps the direct App Server fallback because its
 host App Server may require a graphical/session context. Kimi's credential file
 is writable because its short-lived OAuth token may rotate; the container runs
 with the host UID/GID so the host Kimi Code process can continue to read the
-file. Solo Empire's
-database is mounted read-only at `/data/solo-empire.db`. Gemini is different:
+file. Gemini is different:
 the host-side Antigravity exporter writes only a quota snapshot, mounted
 read-only at `/data/quota/gemini-quota.json`; no Antigravity token is mounted into
 the container. Claude uses the same pattern for its quota/reset snapshot at

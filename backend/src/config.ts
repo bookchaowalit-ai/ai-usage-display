@@ -72,7 +72,6 @@ export interface AppConfig {
     usagePath: string;
   };
   soloEmpire: {
-    dbPath: string;
     apiUrl: string;
     apiToken: string;
   };
@@ -161,7 +160,6 @@ export function loadConfig(envOverrides: NodeJS.ProcessEnv = process.env): AppCo
       usagePath: get("XAI_USAGE_PATH", "/v1/usage"),
     },
     soloEmpire: {
-      dbPath: get("SOLO_EMPIRE_DB_PATH"),
       apiUrl: get("SOLO_EMPIRE_USAGE_API_URL"),
       apiToken: get("SOLO_EMPIRE_USAGE_API_TOKEN"),
     },

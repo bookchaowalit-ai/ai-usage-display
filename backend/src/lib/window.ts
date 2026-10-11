@@ -44,18 +44,3 @@ export function resolveWindow(window: UsageWindow, now: Date = new Date()): Time
     endingAt: end.toISOString(),
   };
 }
-
-/** SQLite datetime fragment: created_at >= datetime('now', ?) style offset for "today" is special-cased by callers. */
-export function sqliteSinceClause(window: UsageWindow): {
-  sql: string;
-  params: string[];
-} {
-  if (window === "today") {
-    // UTC start of day as ISO date prefix match is fragile; use day offset + date filter in adapter.
-    return { sql: "date(created_at) = date('now')", params: [] };
-  }
-  if (window === "7d") {
-    return { sql: "created_at >= datetime('now', ?)", params: ["-7 days"] };
-  }
-  return { sql: "created_at >= datetime('now', ?)", params: ["-30 days"] };
-}

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   mapTelemetryProvider,
   parseApiBody,
-  parseSqliteCsv,
   SoloEmpireAdapter,
 } from "../src/adapters/solo-empire.js";
 
@@ -19,17 +18,6 @@ describe("mapTelemetryProvider", () => {
   });
 });
 
-describe("parseSqliteCsv", () => {
-  it("parses pipe-separated rows", () => {
-    const raw = "anthropic|3|100|20|120|0.05\nopenai|1|10|2|12|0.01\n";
-    const rows = parseSqliteCsv(raw);
-    expect(rows).toHaveLength(2);
-    expect(rows[0]!.provider).toBe("anthropic");
-    expect(rows[0]!.requests).toBe(3);
-    expect(rows[1]!.cost_usd).toBe(0.01);
-  });
-});
-
 describe("parseApiBody", () => {
   it("reads providers array", () => {
     const rows = parseApiBody({
@@ -42,7 +30,7 @@ describe("parseApiBody", () => {
 
 describe("SoloEmpireAdapter", () => {
   it("returns unavailable when not configured", async () => {
-    const adapter = new SoloEmpireAdapter({ dbPath: "", apiUrl: "", apiToken: "" });
+    const adapter = new SoloEmpireAdapter({ apiUrl: "", apiToken: "" });
     const all = await adapter.fetchAll("today");
     expect(all.claude.status).toBe("unavailable");
     expect(all.codex.status).toBe("unavailable");
@@ -67,7 +55,7 @@ describe("SoloEmpireAdapter", () => {
     };
 
     const adapter = new SoloEmpireAdapter(
-      { dbPath: "", apiUrl: "http://localhost:9/telemetry", apiToken: "t" },
+      { apiUrl: "http://localhost:9/telemetry", apiToken: "t" },
       fetchImpl,
     );
     const all = await adapter.fetchAll("today");
@@ -81,7 +69,7 @@ describe("SoloEmpireAdapter", () => {
 
   it("marks every card as no_data when the read-only source has no rows", async () => {
     const adapter = new SoloEmpireAdapter(
-      { dbPath: "", apiUrl: "http://localhost:9/telemetry", apiToken: "" },
+      { apiUrl: "http://localhost:9/telemetry", apiToken: "" },
       async () => ({
         ok: true,
         status: 200,

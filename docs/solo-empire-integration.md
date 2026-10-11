@@ -31,12 +31,7 @@ Contract owner in Solo Empire:
 
 ## Configuration
 
-```bash
-USAGE_SOURCE=hybrid
-SOLO_EMPIRE_DB_PATH=/absolute/path/to/solo-empire/infra/database/solo-empire.db
-```
-
-Or HTTP adapter (preferred if you later expose a read API from Solo Empire):
+The SQLite control-plane database was retired and is no longer read. Use the HTTP adapter:
 
 ```bash
 USAGE_SOURCE=solo_empire
@@ -66,13 +61,13 @@ Expected API body shape (subset):
 | Mode | Behaviour |
 |------|-----------|
 | `providers` | Only external Admin Usage APIs |
-| `solo_empire` | Only telemetry DB/API (read-only) |
+| `solo_empire` | Only telemetry API (read-only) |
 | `hybrid` | Provider APIs first; fill `no_data`/`unavailable`/`error` from telemetry |
 
 ## Safety guarantees
 
-1. SQLite opened read-only (`DatabaseSync(path, { readOnly: true })` from `node:sqlite`).
-2. No migration runner, no writes, no shared write connection pool. No system `sqlite3` CLI required.
+1. HTTP GET only; the display never opens a database.
+2. No migration runner and no writes.
 3. Telemetry contract already forbids prompt/response payloads — this display
    only aggregates numeric fields.
 4. Nested product repo under `book-dev`; Solo Empire catalog remains SSOT for

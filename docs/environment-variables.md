@@ -126,20 +126,10 @@ If usage is not enabled or not available, the Grok card status is `unavailable`
 
 | Variable | Description |
 |----------|-------------|
-| `SOLO_EMPIRE_DB_PATH` | Path to `solo-empire.db` (opened read-only via Node `node:sqlite`) |
 | `SOLO_EMPIRE_USAGE_API_URL` | Optional HTTP adapter URL |
 | `SOLO_EMPIRE_USAGE_API_TOKEN` | Optional Bearer for that URL |
 
-When both API URL and DB path are set, **API URL wins**.
-
-### Example path from this nested repo
-
-From `ai-usage-display/backend/`, a typical relative path into Solo Empire is
-deep; prefer an absolute path:
-
-```bash
-SOLO_EMPIRE_DB_PATH=/home/you/book/solo-empire/infra/database/solo-empire.db
-```
+The retired SQLite database path (`SOLO_EMPIRE_DB_PATH`) is no longer read.
 
 ## What must never appear in env
 

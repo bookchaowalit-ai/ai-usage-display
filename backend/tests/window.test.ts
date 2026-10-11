@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseWindow, resolveWindow, sqliteSinceClause } from "../src/lib/window.js";
+import { parseWindow, resolveWindow } from "../src/lib/window.js";
 
 describe("window", () => {
   it("parses valid windows", () => {
@@ -18,11 +18,5 @@ describe("window", () => {
     const tw = resolveWindow("today", now);
     expect(tw.start.toISOString()).toBe("2026-08-08T00:00:00.000Z");
     expect(tw.end.toISOString()).toBe(now.toISOString());
-  });
-
-  it("builds sqlite clauses", () => {
-    expect(sqliteSinceClause("today").sql).toContain("date(created_at)");
-    expect(sqliteSinceClause("7d").params).toEqual(["-7 days"]);
-    expect(sqliteSinceClause("30d").params).toEqual(["-30 days"]);
   });
 });

@@ -16,7 +16,6 @@ services:
       GROK_QUOTA_PATH: /data/quota/grok-quota.json
       GEMINI_QUOTA_PATH: /data/quota/gemini-quota.json
       KIMI_QUOTA_PATH: /data/quota/kimi-quota.json
-      SOLO_EMPIRE_DB_PATH: /data/solo-empire.db
     user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
     dns:
       - 1.1.1.1
@@ -38,7 +37,6 @@ services:
       # Mount the directory, not individual files: exporters atomically rename
       # fresh snapshots, and a file bind mount would keep the old inode.
       - ${QUOTA_HOST_DIR:?Set QUOTA_HOST_DIR in docker-compose.env}:/data/quota:ro
-      - ${SOLO_EMPIRE_DB_HOST_PATH:?Set SOLO_EMPIRE_DB_HOST_PATH in docker-compose.env}:/data/solo-empire.db:ro
     restart: unless-stopped
     init: true
     healthcheck:

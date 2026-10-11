@@ -16,7 +16,7 @@
 2. **ESP32 must not call provider APIs directly.** Only `GET /api/ai-usage`.
 3. **Do not log or store prompts, responses, or personal content.**
 4. **Do not commit** `.env`, `secrets.h`, or real tokens.
-5. **Solo Empire DB is read-only.** The backend opens SQLite with Node `DatabaseSync(..., { readOnly: true })` and never issues INSERT/UPDATE/DELETE.
+5. **No database access.** The backend reads the optional Solo Empire usage API over HTTP only.
 6. **Local CLI credentials never enter API responses.** Subscription probes
    return only plan label, percentages, quota window, and reset timestamp.
 7. **Kimi refresh stays local.** The backend may rotate Kimi's short-lived OAuth

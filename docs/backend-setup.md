@@ -3,7 +3,6 @@
 ## Requirements
 
 - Node.js 20+
-- Node.js 22+ recommended when using Solo Empire SQLite via built-in `node:sqlite`
 - Network access to provider Admin Usage APIs (if using `USAGE_SOURCE=providers` or `hybrid`)
 - Signed-in Claude Code, Codex, Grok, Kimi Code, and Antigravity CLI sessions for subscription quota percentage
 
@@ -69,7 +68,7 @@ npm run typecheck
 | `USAGE_SOURCE` | Behaviour |
 |----------------|-----------|
 | `providers` | Anthropic + OpenAI + xAI token adapters; Kimi token telemetry remains unavailable |
-| `solo_empire` | Read-only telemetry (SQLite or HTTP) only |
+| `solo_empire` | Read-only telemetry (HTTP) only |
 | `hybrid` (default) | Providers first; fill `no_data`/`unavailable`/`error` from Solo Empire |
 
 See [solo-empire-integration.md](./solo-empire-integration.md).

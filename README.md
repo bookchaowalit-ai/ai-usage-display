@@ -19,7 +19,7 @@ ai-usage-display/
 | ESP32 only fetches `GET /api/ai-usage` | Small attack surface; device token auth |
 | No prompts, responses, or PII | Aggregates only: requests, tokens, cost, status |
 | Unavailable providers stay honest | `status: "unavailable"` when no usage API / missing credentials |
-| Solo Empire is read-only | Optional `ai_run_telemetry` SQLite adapter; never writes the main DB |
+| Solo Empire is read-only | Optional read-only usage API adapter; no database access |
 | Subscription quota stays local | Reads signed-in provider CLIs or non-secret host snapshots; ESP32 receives only percentages/reset times |
 
 ## Architecture
@@ -37,8 +37,8 @@ ai-usage-display/
 └─────────────┘
 ┌─────────────┐  read-only    │                      │
 │ Solo Empire │──────────────▶│  (optional)          │
-│ ai_run_     │  SQLite       └──────────────────────┘
-│ telemetry   │
+│ usage API   │  HTTP         └──────────────────────┘
+│ (optional)  │
 └─────────────┘
 ```
 
