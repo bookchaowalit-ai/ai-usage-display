@@ -236,7 +236,10 @@ export async function probeClaudeQuota(
         ["-p", "--output-format", "json", "--no-session-persistence", "/usage"],
         timeoutMs,
       );
-      cliFallback = parseClaudeCliUsage(result.stdout, now);
+      const parsed = parseClaudeCliUsage(result.stdout, now);
+      // Newer CLIs print only session cost for `-p /usage`; an empty parse must
+      // not hide the real credential or HTTP error below.
+      if (parsed.windows.length > 0) cliFallback = parsed;
     } catch {
       // The credential endpoint below can still work when the CLI renderer fails.
     }

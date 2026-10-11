@@ -133,6 +133,16 @@ describe("local CLI quota probes (fake executables)", () => {
     expect(quota.status).not.toBe("ok");
   });
 
+  it("reports the missing Claude login when the CLI /usage has no quota rows", async () => {
+    const cli = fakeCli(
+      "claude-cost-only",
+      `process.stdout.write(JSON.stringify({ result: "Total cost:            $0.0000\\nUsage:                 0 input, 0 output" }));`,
+    );
+    const quota = await probeClaudeQuota(cli, path.join(dir, "missing.json"), 5000, now);
+    expect(quota.status).toBe("unavailable");
+    expect(quota.message).toBe("Claude credentials not found");
+  });
+
   it("reports Claude unavailable when the CLI hangs and has no credentials", async () => {
     const cli = fakeCli("claude-hang", "setInterval(() => {}, 1000);");
     const quota = await probeClaudeQuota(cli, path.join(dir, "missing.json"), 300, now);
