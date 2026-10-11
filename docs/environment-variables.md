@@ -13,6 +13,18 @@ Copy `backend/.env.example` → `backend/.env`. **Never commit real secrets.**
 | `STALE_MAX_AGE_SECONDS` | `3600` | Max age for serving last-good data as `stale` |
 | `USAGE_SOURCE` | `hybrid` | `providers` \| `solo_empire` \| `hybrid` |
 
+## Hosted relay
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `RELAY_MODE` | *(empty)* | `server` serves pushed snapshots instead of probing providers |
+| `RELAY_PUSH_TOKEN` | *(empty)* | Token for `POST /api/relay/snapshot` (server) and for the host pusher |
+| `RELAY_MAX_AGE_SECONDS` | `600` | Older snapshots return 503 |
+| `RELAY_URL` | *(empty)* | Host pusher target, e.g. `https://<service>.up.railway.app` |
+| `RELAY_PUSH_INTERVAL_SECONDS` | `60` | Host pusher interval |
+
+See [hosted-relay.md](./hosted-relay.md).
+
 ## Local subscription quota
 
 These settings add paid-plan remaining percentage and reset time to every

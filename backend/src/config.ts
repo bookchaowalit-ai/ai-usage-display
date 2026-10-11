@@ -76,6 +76,12 @@ export interface AppConfig {
     apiUrl: string;
     apiToken: string;
   };
+  /** RELAY_MODE=server: serve the payload pushed by the host instead of probing. */
+  relay: {
+    enabled: boolean;
+    pushToken: string;
+    maxAgeSeconds: number;
+  };
 }
 
 export function loadConfig(envOverrides: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -156,6 +162,11 @@ export function loadConfig(envOverrides: NodeJS.ProcessEnv = process.env): AppCo
       dbPath: get("SOLO_EMPIRE_DB_PATH"),
       apiUrl: get("SOLO_EMPIRE_USAGE_API_URL"),
       apiToken: get("SOLO_EMPIRE_USAGE_API_TOKEN"),
+    },
+    relay: {
+      enabled: get("RELAY_MODE").toLowerCase() === "server",
+      pushToken: get("RELAY_PUSH_TOKEN"),
+      maxAgeSeconds: getInt("RELAY_MAX_AGE_SECONDS", 600),
     },
   };
 }

@@ -18,6 +18,8 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+#include "root_ca.h"
 #include <SPI.h>
 #include <TFT_eSPI.h>
 #include <XPT2046_Touchscreen.h>
@@ -289,7 +291,16 @@ static bool fetchUsage() {
   Serial.println(url);
 #endif
   http.setTimeout(HTTP_TIMEOUT_MS);
-  http.begin(url);
+  // HTTPS (hosted relay) verifies the server against the bundled Let's
+  // Encrypt roots; plain http:// stays available for a LAN backend.
+  WiFiClientSecure tls;
+  if (url.startsWith("https://")) {
+    tls.setCACert(ISRG_ROOT_CA_BUNDLE);
+    tls.setTimeout(HTTP_TIMEOUT_MS / 1000);
+    http.begin(tls, url);
+  } else {
+    http.begin(url);
+  }
   http.addHeader("Authorization", String("Bearer ") + DEVICE_TOKEN);
   http.addHeader("Accept", "application/json");
 

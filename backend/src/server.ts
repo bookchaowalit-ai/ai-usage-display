@@ -9,6 +9,12 @@ import { KimiUsageAdapter } from "./adapters/kimi.js";
 import { GeminiUsageAdapter } from "./adapters/gemini.js";
 import { LocalSubscriptionQuotaAdapter } from "./adapters/subscription-quotas.js";
 import { UsageService } from "./lib/usage-service.js";
+import { RelayStore } from "./lib/relay-store.js";
+import {
+  createRelayPushHandler,
+  createRelayReadyHandler,
+  createRelayUsageHandler,
+} from "./routes/relay.js";
 import {
   createAiUsageHandler,
   createHealthHandler,
@@ -20,8 +26,9 @@ import {
  * - "public": no credentials (liveness/readiness probes; aggregate status only).
  * - "device": the ESP32 device token (`Authorization: Bearer` or
  *   `X-Device-Token`), checked inside the handler.
+ * - "relay-push": the host pusher's RELAY_PUSH_TOKEN; exists only in relay mode.
  */
-export type RouteAccess = "public" | "device";
+export type RouteAccess = "public" | "device" | "relay-push";
 
 type Handler = (req: IncomingMessage, res: ServerResponse) => void | Promise<void>;
 
@@ -41,8 +48,9 @@ export function buildRoutes(handlers: {
   usage: Handler;
   health: Handler;
   ready: Handler;
+  relayPush?: Handler;
 }): RouteDef[] {
-  return [
+  const routes: RouteDef[] = [
     {
       name: "health",
       paths: ["/health", "/api/health"],
@@ -65,6 +73,17 @@ export function buildRoutes(handlers: {
       handler: handlers.usage,
     },
   ];
+  if (handlers.relayPush) {
+    // The only state-changing route; it only replaces the in-memory snapshot.
+    routes.push({
+      name: "relay-push",
+      paths: ["/api/relay/snapshot"],
+      methods: ["POST"],
+      access: "relay-push",
+      handler: handlers.relayPush,
+    });
+  }
+  return routes;
 }
 
 function sendError(res: ServerResponse, status: number, error: string): void {
@@ -72,7 +91,18 @@ function sendError(res: ServerResponse, status: number, error: string): void {
   res.end(JSON.stringify({ error }));
 }
 
-export function createServer(config: AppConfig): http.Server {
+function relayRoutes(config: AppConfig): RouteDef[] {
+  const store = new RelayStore();
+  const maxAgeSeconds = config.relay.maxAgeSeconds;
+  return buildRoutes({
+    usage: createRelayUsageHandler({ deviceToken: config.deviceToken, store, maxAgeSeconds }),
+    health: createHealthHandler(),
+    ready: createRelayReadyHandler({ store, maxAgeSeconds }),
+    relayPush: createRelayPushHandler({ pushToken: config.relay.pushToken, store }),
+  });
+}
+
+function probeRoutes(config: AppConfig): RouteDef[] {
   const adapters = {
     claude: new AnthropicUsageAdapter(config.anthropic),
     codex: new OpenAIUsageAdapter(config.openai),
@@ -93,11 +123,15 @@ export function createServer(config: AppConfig): http.Server {
     subscriptionQuotas,
   );
 
-  const routes = buildRoutes({
+  return buildRoutes({
     usage: createAiUsageHandler({ deviceToken: config.deviceToken, usageService }),
     health: createHealthHandler(),
     ready: createReadyHandler({ deviceToken: config.deviceToken, usageService }),
   });
+}
+
+export function createServer(config: AppConfig): http.Server {
+  const routes = config.relay.enabled ? relayRoutes(config) : probeRoutes(config);
 
   return http.createServer((req, res) => {
     // Parse against a fixed base: only the path matters, and a client-supplied
@@ -117,7 +151,7 @@ export function createServer(config: AppConfig): http.Server {
       sendError(res, 404, "not_found");
       return;
     }
-    // Every route is read-only; nothing on this server changes state.
+    // Only the relay-mode push route accepts a state-changing method.
     if (!route.methods.includes(req.method ?? "")) {
       res.setHeader("Allow", route.methods.join(", "));
       sendError(res, 405, "method_not_allowed");
