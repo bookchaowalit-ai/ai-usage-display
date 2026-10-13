@@ -90,11 +90,14 @@ Replace `/dev/ttyUSB0` with the port reported by `arduino-cli board list`.
 ## Verify
 
 1. Backend running on the LAN IP in `BACKEND_BASE_URL`
-2. Screen shows a 3×2 page: CODEX SPARK / CODEX / GROK / KIMI / GEMINI / STATUS
-3. Each provider card shows separate `5H` and `WEEK` percentages plus reset date/time
+2. Screen shows a 3×2 page: CLAUDE / CODEX / GROK / GEMINI / MUSE / STATUS
+3. Each provider card shows separate `5H` and `WK` percentages and remaining
+   bars, plus reset date/time for both windows; unavailable windows show `--%`
+   and a dashed track. MUSE is a placeholder with `NO DATA`.
 4. Header **ONLINE** when fetch succeeds
 5. Disconnect backend → numbers freeze, header **OFFLINE**
 6. Tap screen → force refresh
+7. A stale quota snapshot keeps its values and shows `STALE` instead of `LIVE`
 
 If the ESP32 connects to Wi-Fi but reports `HTTP status=-1`, allow the backend
 port through the host firewall for the board's current LAN IP. Keep this rule

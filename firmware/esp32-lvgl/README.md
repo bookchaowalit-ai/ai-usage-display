@@ -65,18 +65,23 @@ Antigravity bridge when its snapshot is available; otherwise the display shows -
 
 Each card shows:
 
-- separate remaining percentages for the rolling `5h` and `week` windows
+- separate remaining percentages and slim bars for the rolling `5h` and
+  `week` windows, with labels on the left and percentages aligned on the right
+- dark panels with thin neutral frames and white provider names; quota color
+  stays on the bars: red at 10% or less, orange at 30% or less, muted green above
 - reset date and time for both windows, in the configured timezone
 - weekly reset text turns red within 1 day and orange within 3 days; the
   frequent 5h reset remains neutral
-- live/offline status without the larger token/cost diagnostic fields
+- `LIVE` for fresh quota, `STALE` for stale snapshots, `OFFLINE` for saved quota
+  when the backend is offline, and `NO DATA` when quota is unavailable
 - stale quota snapshots keep their last known percentages and reset times, with
-  an orange card border instead of being replaced by `--`
+  an orange `STALE` label
 
 The backend still returns token/cost telemetry for diagnostics, but the 320×240
 screen prioritizes both subscription windows so you can use the allowance
 before either one resets. A provider that does not expose one of the windows
-shows `--%` for that window instead of inventing a value.
+shows `--%` and a dashed neutral track for that window instead of inventing a
+value. A known 0% window has a solid empty track.
 
 Header shows **ONLINE** / **OFFLINE**. On backend failure the last successful
 numbers remain on screen with OFFLINE status. Refresh every 60 seconds; tap

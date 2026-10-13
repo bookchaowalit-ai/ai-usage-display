@@ -571,125 +571,104 @@ static bool fetchUsage() {
 }
 
 // ---------- TFT fallback UI (also used if LVGL not linked) ----------
-static uint16_t statusColor(const char *status) {
-  if (!status) return TFT_DARKGREY;
-  if (strcmp(status, "ok") == 0) return TFT_GREEN;
-  if (strcmp(status, "no_data") == 0) return TFT_DARKGREY;
-  if (strcmp(status, "stale") == 0) return TFT_ORANGE;
-  if (strcmp(status, "unavailable") == 0) return TFT_DARKGREY;
-  if (strcmp(status, "error") == 0) return TFT_RED;
-  return TFT_YELLOW;
+static const uint16_t UI_PANEL = 0x10A3;
+static const uint16_t UI_FRAME = 0x2945;
+static const uint16_t UI_MUTED = 0x9CD3;
+static const uint16_t UI_GREEN = 0x5C8D;
+static const int UI_INSET = 7;
+
+static uint16_t remainingColor(float remaining) {
+  if (remaining <= 10.0f) return TFT_RED;
+  if (remaining <= 30.0f) return TFT_ORANGE;
+  return UI_GREEN;
 }
 
-static uint16_t cardColor(const ProviderCard &card) {
-  if (card.has_quota) {
-    float tightest = 101.0f;
-    if (card.has_five_hour) tightest = card.five_hour_remaining_percent;
-    if (card.has_weekly && card.weekly_remaining_percent < tightest) {
-      tightest = card.weekly_remaining_percent;
+static void drawTilePanel(const char *title, int x, int y, int w, int h) {
+  tft.fillRoundRect(x, y, w, h, 6, UI_PANEL);
+  tft.drawRoundRect(x, y, w, h, 6, UI_FRAME);
+  tft.drawFastHLine(x + UI_INSET, y + 21, w - 2 * UI_INSET, UI_FRAME);
+  tft.setTextDatum(TC_DATUM);
+  tft.setTextColor(TFT_WHITE, UI_PANEL);
+  tft.drawString(title, x + w / 2, y + 3, 2);
+}
+
+static void drawRemainingBar(bool available, float remaining, int x, int y, int w) {
+  const int height = 3;
+  if (!available) {
+    // A dashed track distinguishes an unknown window from a known empty one.
+    for (int offset = 0; offset < w; offset += 8) {
+      const int dashWidth = w - offset < 4 ? w - offset : 4;
+      tft.fillRect(x + offset, y, dashWidth, height, UI_FRAME);
     }
-    if (tightest <= 10.0f) return TFT_RED;
-    if (tightest <= 30.0f) return TFT_ORANGE;
-    if (strcmp(card.quota_status, "stale") == 0) return TFT_ORANGE;
-    return TFT_GREEN;
+    return;
   }
-  return statusColor(card.quota_status);
+
+  tft.fillRect(x, y, w, height, UI_FRAME);
+  const float bounded = remaining < 0.0f ? 0.0f : (remaining > 100.0f ? 100.0f : remaining);
+  const int filled = static_cast<int>(bounded * w / 100.0f + 0.5f);
+  if (filled > 0) tft.fillRect(x, y, filled, height, remainingColor(remaining));
+}
+
+static void drawQuotaWindow(
+  const char *label, bool available, float remaining, const char *resetsAt,
+  uint16_t resetColor, int x, int y, int w
+) {
+  char line[24];
+  char date[8];
+  char time[8];
+  formatResetLocal(available ? resetsAt : "-", date, sizeof(date), time, sizeof(time));
+
+  tft.setTextDatum(TL_DATUM);
+  tft.setTextColor(UI_MUTED, UI_PANEL);
+  tft.drawString(label, x + UI_INSET, y + 4, 1);
+  tft.setTextDatum(TR_DATUM);
+  tft.setTextColor(available ? TFT_WHITE : UI_MUTED, UI_PANEL);
+  snprintf(line, sizeof(line), available ? "%.0f%%" : "--%%", remaining);
+  tft.drawString(line, x + w - UI_INSET, y, 2);
+
+  drawRemainingBar(available, remaining, x + UI_INSET, y + 17, w - 2 * UI_INSET);
+
+  // Keep exact local reset dates and times beside their respective windows.
+  tft.setTextDatum(TC_DATUM);
+  tft.setTextColor(available ? resetColor : UI_MUTED, UI_PANEL);
+  snprintf(line, sizeof(line), "R %s %s", date, time);
+  tft.drawString(line, x + w / 2, y + 23, 1);
+}
+
+static const char *quotaStateLabel(const ProviderCard &c) {
+  if (!c.has_quota) return "NO DATA";
+  if (!g_online) return "OFFLINE";
+  if (strcmp(c.quota_status, "stale") == 0) return "STALE";
+  return "LIVE";
 }
 
 static void drawProviderTile(const ProviderCard &c, int x, int y, int w, int h) {
-  const uint16_t border = cardColor(c);
-  tft.drawRoundRect(x, y, w, h, 6, border);
-  tft.fillRoundRect(x + 1, y + 1, w - 2, 19, 5, border);
-
-  tft.setTextDatum(TC_DATUM);
-  tft.setTextColor(TFT_BLACK, border);
-  tft.drawString(c.title, x + w / 2, y + 3, strlen(c.title) > 8 ? 1 : 2);
-
-  char line[24];
-  char fiveDate[8];
-  char fiveTime[8];
-  char weekDate[8];
-  char weekTime[8];
-  formatResetLocal(
-    c.has_five_hour ? c.five_hour_resets_at : "-",
-    fiveDate,
-    sizeof(fiveDate),
-    fiveTime,
-    sizeof(fiveTime)
+  drawTilePanel(c.title, x, y, w, h);
+  drawQuotaWindow(
+    "5H", c.has_five_hour, c.five_hour_remaining_percent, c.five_hour_resets_at,
+    UI_MUTED, x, y + 23, w
   );
-  formatResetLocal(
-    c.has_weekly ? c.weekly_resets_at : "-",
-    weekDate,
-    sizeof(weekDate),
-    weekTime,
-    sizeof(weekTime)
+  // Frequent 5h resets stay neutral; the weekly reset keeps day-level alerts.
+  drawQuotaWindow(
+    "WK", c.has_weekly, c.weekly_remaining_percent, c.weekly_resets_at,
+    weeklyResetTextColor(c.weekly_resets_at), x, y + 59, w
   );
 
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  snprintf(
-    line,
-    sizeof(line),
-    c.has_five_hour ? "5H %.0f%%" : "5H --%%",
-    c.five_hour_remaining_percent
-  );
-  tft.drawString(line, x + w / 2, y + 24, 2);
-
-  // The rolling 5h reset is intentionally neutral: it happens every day and
-  // should not look like a warning. The weekly reset gets day-level alerts.
-  tft.setTextColor(c.has_five_hour ? TFT_LIGHTGREY : TFT_DARKGREY, TFT_BLACK);
-  snprintf(
-    line,
-    sizeof(line),
-    c.has_five_hour ? "R %s %s" : "R --/-- --:--",
-    fiveDate,
-    fiveTime
-  );
-  tft.drawString(line, x + w / 2, y + 41, 1);
-
-  tft.drawFastHLine(x + 7, y + 52, w - 14, TFT_DARKGREY);
-
-  tft.setTextColor(TFT_WHITE, TFT_BLACK);
-  snprintf(
-    line,
-    sizeof(line),
-    c.has_weekly ? "WK %.0f%%" : "WK --%%",
-    c.weekly_remaining_percent
-  );
-  tft.drawString(line, x + w / 2, y + 57, 2);
-
-  tft.setTextColor(
-    c.has_weekly ? weeklyResetTextColor(c.weekly_resets_at) : TFT_DARKGREY,
-    TFT_BLACK
-  );
-  snprintf(
-    line,
-    sizeof(line),
-    c.has_weekly ? "R %s %s" : "R --/-- --:--",
-    weekDate,
-    weekTime
-  );
-  tft.drawString(line, x + w / 2, y + 74, 1);
-
-  const char *statusLabel = c.has_quota ? (g_online ? "LIVE" : "OFFLINE") : "--";
-  tft.setTextColor(c.has_quota ? border : TFT_DARKGREY, TFT_BLACK);
-  tft.drawString(statusLabel, x + w / 2, y + 91, 1);
+  const uint16_t stateColor = !c.has_quota ? UI_MUTED :
+    (!g_online || strcmp(c.quota_status, "stale") == 0 ? TFT_ORANGE : UI_GREEN);
+  tft.setTextColor(stateColor, UI_PANEL);
+  tft.drawString(quotaStateLabel(c), x + w / 2, y + 91, 1);
 }
 
 static void drawStatusTile(int x, int y, int w, int h) {
-  const uint16_t border = g_online ? TFT_GREEN : TFT_RED;
-  tft.drawRoundRect(x, y, w, h, 6, border);
-  tft.fillRoundRect(x + 1, y + 1, w - 2, 19, 5, border);
-
-  tft.setTextDatum(TC_DATUM);
-  tft.setTextColor(TFT_BLACK, border);
-  tft.drawString("STATUS", x + w / 2, y + 3, 2);
-  tft.setTextColor(g_online ? TFT_GREEN : TFT_RED, TFT_BLACK);
-  tft.drawString(g_online ? "ONLINE" : "OFFLINE", x + w / 2, y + 27, 2);
-  tft.setTextColor(TFT_LIGHTGREY, TFT_BLACK);
-  tft.drawString("5 AI", x + w / 2, y + 49, 2);
-  tft.drawString("SYNC 60s", x + w / 2, y + 68, 1);
-  tft.setTextColor(TFT_DARKGREY, TFT_BLACK);
-  tft.drawString(g_last_error[0] ? "RETRY" : "TAP REFRESH", x + w / 2, y + 88, 1);
+  drawTilePanel("STATUS", x, y, w, h);
+  tft.setTextColor(g_online ? UI_GREEN : TFT_RED, UI_PANEL);
+  tft.drawString(g_online ? "ONLINE" : "OFFLINE", x + w / 2, y + 29, 2);
+  tft.setTextColor(TFT_WHITE, UI_PANEL);
+  tft.drawString("5 AI", x + w / 2, y + 51, 2);
+  tft.setTextColor(UI_MUTED, UI_PANEL);
+  tft.drawString("SYNC 60s", x + w / 2, y + 73, 1);
+  tft.drawString(g_last_error[0] ? "RETRY" : "TAP REFRESH", x + w / 2, y + 91, 1);
 }
 
 static void drawUi() {
@@ -699,7 +678,7 @@ static void drawUi() {
   tft.setTextColor(TFT_WHITE, TFT_BLACK);
   tft.drawString("AI QUOTA", 5, 3, 2);
   tft.setTextDatum(TR_DATUM);
-  tft.setTextColor(g_online ? TFT_GREEN : TFT_RED, TFT_BLACK);
+  tft.setTextColor(g_online ? UI_GREEN : TFT_RED, TFT_BLACK);
   tft.drawString(g_online ? "ONLINE" : "OFFLINE", SCREEN_WIDTH - 5, 3, 2);
 
   // One-page 3x2 grid: five providers plus a compact backend status tile.
